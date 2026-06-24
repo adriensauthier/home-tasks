@@ -5,6 +5,8 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const AUTH_COOKIE_NAME = "home_tasks_auth";
 
+const allowedUsernames = new Set(["stephane", "claudine", "adrien", "lea"]);
+
 export type AuthUser = {
   id: string;
   username: string;
@@ -25,6 +27,15 @@ type AuthRecord = {
 
 function normalizeUsername(value: string) {
   return value.trim().toLowerCase();
+}
+
+function displayNameForUsername(username: string) {
+  if (username === "stephane") return "Stephane";
+  if (username === "claudine") return "Claudine";
+  if (username === "adrien") return "Adrien";
+  if (username === "lea") return "Lea";
+
+  return username;
 }
 
 function getAuthSecret() {
@@ -99,6 +110,102 @@ async function getAuthRecord(userId: string) {
   return data as AuthRecord;
 }
 
+async function getOrCreateAuthRecord(username: string) {
+  const supabase = getSupabaseAdmin();
+  const normalizedUsername = normalizeUsername(username);
+
+  if (!allowedUsernames.has(normalizedUsername)) {
+    return null;
+  }
+
+  const { data: existingRecord, error: readError } = await supabase
+    .from("app_users")
+    .select(
+      `
+        id,
+        username,
+        password_hash,
+        person_id,
+        person:people(id, name)
+      `
+    )
+    .eq("username", normalizedUsername)
+    .maybeSingle();
+
+  if (readError) {
+    throw readError;
+  }
+
+  if (existingRecord) {
+    return existingRecord as AuthRecord;
+  }
+
+  const displayName = displayNameForUsername(normalizedUsername);
+  const { data: personRecord, error: personError } = await supabase
+    .from("people")
+    .select("id, name")
+    .eq("name", displayName)
+    .maybeSingle();
+
+  if (personError) {
+    throw personError;
+  }
+
+  const personId = personRecord?.id;
+
+  if (!personId) {
+    const { data: createdPerson, error: createPersonError } = await supabase
+      .from("people")
+      .insert({ name: displayName })
+      .select("id, name")
+      .single();
+
+    if (createPersonError || !createdPerson) {
+      throw createPersonError ?? new Error("Unable to create person");
+    }
+
+    const { data: createdUser, error: createUserError } = await supabase
+      .from("app_users")
+      .insert({ username: normalizedUsername, person_id: createdPerson.id })
+      .select(
+        `
+          id,
+          username,
+          password_hash,
+          person_id,
+          person:people(id, name)
+        `
+      )
+      .single();
+
+    if (createUserError || !createdUser) {
+      throw createUserError ?? new Error("Unable to create user");
+    }
+
+    return createdUser as AuthRecord;
+  }
+
+  const { data: createdUser, error: createUserError } = await supabase
+    .from("app_users")
+    .insert({ username: normalizedUsername, person_id: personId })
+    .select(
+      `
+        id,
+        username,
+        password_hash,
+        person_id,
+        person:people(id, name)
+      `
+    )
+    .single();
+
+  if (createUserError || !createdUser) {
+    throw createUserError ?? new Error("Unable to create user");
+  }
+
+  return createdUser as AuthRecord;
+}
+
 function toAuthUser(record: AuthRecord): AuthUser {
   const person = record.person?.[0] ?? null;
 
@@ -152,27 +259,21 @@ export async function requireAuthorization() {
 
 export async function createSessionToken(username: string, password: string) {
   const supabase = getSupabaseAdmin();
-  const normalizedUsername = normalizeUsername(username);
 
-  const { data: record, error } = await supabase
-    .from("app_users")
-    .select(
-      `
-        id,
-        username,
-        password_hash,
-        person_id,
-        person:people(id, name)
-      `
-    )
-    .eq("username", normalizedUsername)
-    .single();
+  let authRecord: AuthRecord;
 
-  if (error || !record) {
-    return { error: "Unknown user" as const };
+  try {
+    const record = await getOrCreateAuthRecord(username);
+    if (!record) {
+      return { error: "Unknown user" as const };
+    }
+
+    authRecord = record;
+  } catch (caughtError) {
+    return {
+      error: caughtError instanceof Error ? caughtError.message : "Unable to initialize user"
+    };
   }
-
-  const authRecord = record as AuthRecord;
 
   if (authRecord.password_hash) {
     if (!verifyPassword(password, authRecord.password_hash)) {
