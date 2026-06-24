@@ -121,10 +121,33 @@ export default function HomePage() {
   }, [tasks]);
 
   const tasksByPerson = useMemo(() => {
-    return people.map((person) => ({
-      person,
-      tasks: tasks.filter((task) => task.assigned_to === person.id && !task.done)
+    const sortTasks = (leftTask: Task, rightTask: Task) => {
+      const leftDueDate = leftTask.due_date ?? "9999-12-31";
+      const rightDueDate = rightTask.due_date ?? "9999-12-31";
+
+      if (leftDueDate !== rightDueDate) {
+        return leftDueDate.localeCompare(rightDueDate);
+      }
+
+      return rightTask.created_at.localeCompare(leftTask.created_at);
+    };
+
+    const groupedPeople = people.map((person) => ({
+      id: person.id,
+      label: person.name,
+      tasks: tasks.filter((task) => task.assigned_to === person.id).sort(sortTasks)
     }));
+
+    const unassignedTasks = tasks.filter((task) => !task.assigned_to).sort(sortTasks);
+
+    return [
+      ...groupedPeople,
+      {
+        id: "unassigned",
+        label: "Non attribuées",
+        tasks: unassignedTasks
+      }
+    ];
   }, [people, tasks]);
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
@@ -410,15 +433,43 @@ export default function HomePage() {
       </section>
 
       <section className="panel">
-        <h2>Répartition par personne</h2>
-        <div className="assignment-grid">
-          {tasksByPerson.map(({ person, tasks: assignedTasks }) => (
-            <article className="assignment-card" key={person.id}>
-              <strong>{person.name}</strong>
-              <span>{assignedTasks.length} tâche{assignedTasks.length > 1 ? "s" : ""} à faire</span>
+        <div className="section-header">
+          <h2>Vue par personne</h2>
+          <span className="muted">Toutes les tâches, regroupées par responsable</span>
+        </div>
+
+        <div className="person-task-grid">
+          {tasksByPerson.map(({ id, label, tasks: assignedTasks }) => (
+            <article className="person-task-card" key={id}>
+              <div className="person-task-card-header">
+                <strong>{label}</strong>
+                <span>
+                  {assignedTasks.length} tâche{assignedTasks.length > 1 ? "s" : ""}
+                </span>
+              </div>
+
+              <div className="person-task-list">
+                {assignedTasks.length === 0 && <p className="muted">Aucune tâche pour le moment.</p>}
+
+                {assignedTasks.map((task) => (
+                  <article className="person-task-item" key={task.id}>
+                    <div className="person-task-item-main">
+                      <div className="task-title-row compact">
+                        <h3>{task.title}</h3>
+                        {task.done && <span className="pill done-pill">Terminée</span>}
+                        {isOverdue(task) && <span className="pill overdue-pill">En retard</span>}
+                      </div>
+
+                      <div className="task-meta compact">
+                        <span>{frequencyLabels[task.frequency]}</span>
+                        <span>{task.due_date ? `Pour le ${new Date(`${task.due_date}T00:00:00`).toLocaleDateString("fr-CH")}` : "Pas de date"}</span>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
             </article>
           ))}
-          {people.length === 0 && <p className="muted">La répartition apparaîtra ici.</p>}
         </div>
       </section>
 
