@@ -8,6 +8,13 @@ type Person = {
   created_at: string;
 };
 
+type User = {
+  id: string;
+  username: string;
+  name: string;
+  personId: string;
+};
+
 type Frequency = "one_time" | "daily" | "weekly" | "monthly";
 
 type Task = {
@@ -24,8 +31,8 @@ type Task = {
 };
 
 type AuthStatus = {
-  passwordEnabled: boolean;
   authenticated: boolean;
+  user: User | null;
 };
 
 const frequencyLabels: Record<Frequency, string> = {
@@ -63,13 +70,11 @@ async function requestJson<T>(url: string, options?: RequestInit): Promise<T> {
 
 export default function HomePage() {
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
+  const [username, setUsername] = useState("adrien");
   const [password, setPassword] = useState("");
-  const [people, setPeople] = useState<Person[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [personName, setPersonName] = useState("");
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
-  const [taskAssignedTo, setTaskAssignedTo] = useState("");
   const [taskFrequency, setTaskFrequency] = useState<Frequency>("weekly");
   const [taskDueDate, setTaskDueDate] = useState("");
   const [error, setError] = useState("");
@@ -78,12 +83,7 @@ export default function HomePage() {
 
   async function loadData() {
     setError("");
-    const [peoplePayload, tasksPayload] = await Promise.all([
-      requestJson<{ people: Person[] }>("/api/people"),
-      requestJson<{ tasks: Task[] }>("/api/tasks")
-    ]);
-
-    setPeople(peoplePayload.people);
+    const tasksPayload = await requestJson<{ tasks: Task[] }>("/api/tasks");
     setTasks(tasksPayload.tasks);
   }
 
@@ -120,36 +120,6 @@ export default function HomePage() {
     };
   }, [tasks]);
 
-  const tasksByPerson = useMemo(() => {
-    const sortTasks = (leftTask: Task, rightTask: Task) => {
-      const leftDueDate = leftTask.due_date ?? "9999-12-31";
-      const rightDueDate = rightTask.due_date ?? "9999-12-31";
-
-      if (leftDueDate !== rightDueDate) {
-        return leftDueDate.localeCompare(rightDueDate);
-      }
-
-      return rightTask.created_at.localeCompare(leftTask.created_at);
-    };
-
-    const groupedPeople = people.map((person) => ({
-      id: person.id,
-      label: person.name,
-      tasks: tasks.filter((task) => task.assigned_to === person.id).sort(sortTasks)
-    }));
-
-    const unassignedTasks = tasks.filter((task) => !task.assigned_to).sort(sortTasks);
-
-    return [
-      ...groupedPeople,
-      {
-        id: "unassigned",
-        label: "Non attribuées",
-        tasks: unassignedTasks
-      }
-    ];
-  }, [people, tasks]);
-
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
@@ -158,11 +128,11 @@ export default function HomePage() {
     try {
       await requestJson("/api/auth/login", {
         method: "POST",
-        body: JSON.stringify({ password })
+        body: JSON.stringify({ username, password })
       });
       await boot();
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : "Mot de passe incorrect.");
+      setError(caughtError instanceof Error ? caughtError.message : "Impossible de se connecter.");
     } finally {
       setSaving(false);
     }
@@ -170,43 +140,9 @@ export default function HomePage() {
 
   async function handleLogout() {
     await requestJson("/api/auth/logout", { method: "POST" });
-    setAuthStatus({ passwordEnabled: true, authenticated: false });
-    setPeople([]);
+    setAuthStatus({ authenticated: false, user: null });
     setTasks([]);
     setPassword("");
-  }
-
-  async function handleAddPerson(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSaving(true);
-    setError("");
-
-    try {
-      await requestJson("/api/people", {
-        method: "POST",
-        body: JSON.stringify({ name: personName })
-      });
-      setPersonName("");
-      await loadData();
-    } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : "Impossible d'ajouter la personne.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleDeletePerson(personId: string) {
-    setSaving(true);
-    setError("");
-
-    try {
-      await requestJson(`/api/people/${personId}`, { method: "DELETE" });
-      await loadData();
-    } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : "Impossible de supprimer la personne.");
-    } finally {
-      setSaving(false);
-    }
   }
 
   async function handleAddTask(event: FormEvent<HTMLFormElement>) {
@@ -220,7 +156,6 @@ export default function HomePage() {
         body: JSON.stringify({
           title: taskTitle,
           description: taskDescription,
-          assigned_to: taskAssignedTo,
           frequency: taskFrequency,
           due_date: taskDueDate
         })
@@ -228,7 +163,6 @@ export default function HomePage() {
 
       setTaskTitle("");
       setTaskDescription("");
-      setTaskAssignedTo("");
       setTaskFrequency("weekly");
       setTaskDueDate("");
       await loadData();
@@ -278,27 +212,37 @@ export default function HomePage() {
     );
   }
 
-  if (authStatus?.passwordEnabled && !authStatus.authenticated) {
+  if (!authStatus?.authenticated) {
     return (
       <main className="shell centered">
         <section className="login-card">
           <p className="eyebrow">HomeTasks</p>
-          <h1>Connexion à la maison</h1>
-          <p>Entre le mot de passe partagé pour voir et modifier les tâches ménagères.</p>
+          <h1>Connexion</h1>
+          <p>Choisis ton compte et définis ton mot de passe lors de la première connexion.</p>
 
           <form onSubmit={handleLogin} className="stack">
+            <label>
+              Compte
+              <select value={username} onChange={(event) => setUsername(event.target.value)}>
+                <option value="stephane">Stéphane</option>
+                <option value="claudine">Claudine</option>
+                <option value="adrien">Adrien</option>
+                <option value="lea">Léa</option>
+              </select>
+            </label>
+
             <label>
               Mot de passe
               <input
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                placeholder="Mot de passe"
+                placeholder="Définis ton mot de passe"
                 autoFocus
               />
             </label>
             <button type="submit" disabled={saving}>
-              {saving ? "Connexion..." : "Se connecter"}
+              {saving ? "Connexion..." : "Entrer"}
             </button>
           </form>
 
@@ -313,17 +257,16 @@ export default function HomePage() {
       <header className="hero">
         <div>
           <p className="eyebrow">HomeTasks</p>
-          <h1>Suivi des tâches ménagères</h1>
-          <p>
-            Ajoute les personnes de la maison, crée les tâches, attribue-les et suis ce qui est fait ou en retard.
-          </p>
+          <h1>Mes tâches</h1>
+          <p>Tu es connecté en tant que {authStatus.user?.name ?? "utilisateur"}. Tu vois uniquement tes tâches.</p>
         </div>
 
-        {authStatus?.passwordEnabled && (
+        <div className="hero-actions">
+          {authStatus.user && <span className="current-user-pill">{authStatus.user.name}</span>}
           <button className="secondary" onClick={handleLogout} type="button">
             Se déconnecter
           </button>
-        )}
+        </div>
       </header>
 
       {error && <p className="error banner">{error}</p>}
@@ -349,32 +292,6 @@ export default function HomePage() {
 
       <section className="grid two-columns">
         <article className="panel">
-          <h2>Personnes</h2>
-          <form onSubmit={handleAddPerson} className="inline-form">
-            <input
-              value={personName}
-              onChange={(event) => setPersonName(event.target.value)}
-              placeholder="Exemple : Léa"
-            />
-            <button disabled={saving || !personName.trim()} type="submit">
-              Ajouter
-            </button>
-          </form>
-
-          <div className="people-list">
-            {people.length === 0 && <p className="muted">Ajoute d'abord les personnes de la maison.</p>}
-            {people.map((person) => (
-              <div className="person-row" key={person.id}>
-                <span>{person.name}</span>
-                <button className="ghost" onClick={() => handleDeletePerson(person.id)} type="button">
-                  Supprimer
-                </button>
-              </div>
-            ))}
-          </div>
-        </article>
-
-        <article className="panel">
           <h2>Nouvelle tâche</h2>
           <form onSubmit={handleAddTask} className="stack">
             <label>
@@ -395,30 +312,16 @@ export default function HomePage() {
               />
             </label>
 
-            <div className="form-grid">
-              <label>
-                Attribuée à
-                <select value={taskAssignedTo} onChange={(event) => setTaskAssignedTo(event.target.value)}>
-                  <option value="">Personne</option>
-                  {people.map((person) => (
-                    <option value={person.id} key={person.id}>
-                      {person.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
-                Fréquence
-                <select value={taskFrequency} onChange={(event) => setTaskFrequency(event.target.value as Frequency)}>
-                  {Object.entries(frequencyLabels).map(([value, label]) => (
-                    <option value={value} key={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
+            <label>
+              Fréquence
+              <select value={taskFrequency} onChange={(event) => setTaskFrequency(event.target.value as Frequency)}>
+                {Object.entries(frequencyLabels).map(([value, label]) => (
+                  <option value={value} key={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
 
             <label>
               Date limite
@@ -434,48 +337,7 @@ export default function HomePage() {
 
       <section className="panel">
         <div className="section-header">
-          <h2>Vue par personne</h2>
-          <span className="muted">Toutes les tâches, regroupées par responsable</span>
-        </div>
-
-        <div className="person-task-grid">
-          {tasksByPerson.map(({ id, label, tasks: assignedTasks }) => (
-            <article className="person-task-card" key={id}>
-              <div className="person-task-card-header">
-                <strong>{label}</strong>
-                <span>
-                  {assignedTasks.length} tâche{assignedTasks.length > 1 ? "s" : ""}
-                </span>
-              </div>
-
-              <div className="person-task-list">
-                {assignedTasks.length === 0 && <p className="muted">Aucune tâche pour le moment.</p>}
-
-                {assignedTasks.map((task) => (
-                  <article className="person-task-item" key={task.id}>
-                    <div className="person-task-item-main">
-                      <div className="task-title-row compact">
-                        <h3>{task.title}</h3>
-                        {task.done && <span className="pill done-pill">Terminée</span>}
-                        {isOverdue(task) && <span className="pill overdue-pill">En retard</span>}
-                      </div>
-
-                      <div className="task-meta compact">
-                        <span>{frequencyLabels[task.frequency]}</span>
-                        <span>{task.due_date ? `Pour le ${new Date(`${task.due_date}T00:00:00`).toLocaleDateString("fr-CH")}` : "Pas de date"}</span>
-                      </div>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="panel">
-        <div className="section-header">
-          <h2>Toutes les tâches</h2>
+          <h2>Mes tâches</h2>
           <button className="secondary" onClick={loadData} type="button">
             Actualiser
           </button>
@@ -494,26 +356,12 @@ export default function HomePage() {
                   </div>
                   {task.description && <p>{task.description}</p>}
                   <div className="task-meta">
-                    <span>{task.person?.name ?? "Non attribuée"}</span>
                     <span>{frequencyLabels[task.frequency]}</span>
                     <span>{task.due_date ? `Pour le ${new Date(`${task.due_date}T00:00:00`).toLocaleDateString("fr-CH")}` : "Pas de date"}</span>
                   </div>
                 </div>
 
                 <div className="task-actions">
-                  <select
-                    value={task.assigned_to ?? ""}
-                    onChange={(event) => updateTask(task.id, { assigned_to: event.target.value })}
-                    aria-label="Changer la personne assignée"
-                  >
-                    <option value="">Personne</option>
-                    {people.map((person) => (
-                      <option value={person.id} key={person.id}>
-                        {person.name}
-                      </option>
-                    ))}
-                  </select>
-
                   {!task.done ? (
                     <button onClick={() => updateTask(task.id, { action: "complete" })} type="button">
                       Marquer faite

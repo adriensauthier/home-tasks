@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuthorization } from "@/lib/auth";
+import { getAuthorizedUser, requireAuthorization } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 type Frequency = "one_time" | "daily" | "weekly" | "monthly";
@@ -27,6 +27,11 @@ export async function GET() {
   const unauthorized = await requireAuthorization();
   if (unauthorized) return unauthorized;
 
+  const currentUser = await getAuthorizedUser();
+  if (!currentUser) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from("tasks")
@@ -42,6 +47,7 @@ export async function GET() {
       created_at,
       person:people(id, name)
     `)
+    .eq("assigned_to", currentUser.personId)
     .order("done", { ascending: true })
     .order("due_date", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: false });
@@ -57,6 +63,11 @@ export async function POST(request: NextRequest) {
   const unauthorized = await requireAuthorization();
   if (unauthorized) return unauthorized;
 
+  const currentUser = await getAuthorizedUser();
+  if (!currentUser) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await request.json().catch(() => ({}));
   const title = normalizeNullableString(body.title);
 
@@ -70,7 +81,7 @@ export async function POST(request: NextRequest) {
     .insert({
       title,
       description: normalizeNullableString(body.description),
-      assigned_to: normalizeNullableString(body.assigned_to),
+      assigned_to: currentUser.personId,
       frequency: normalizeFrequency(body.frequency),
       due_date: normalizeNullableString(body.due_date),
       done: false

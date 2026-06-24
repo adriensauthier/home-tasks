@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuthorization } from "@/lib/auth";
+import { getAuthorizedUser, requireAuthorization } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getNextDueDate } from "@/lib/dates";
 
@@ -53,12 +53,18 @@ export async function PATCH(
   const { id } = await params;
   const body = await request.json().catch(() => ({}));
   const supabase = getSupabaseAdmin();
+  const currentUser = await getAuthorizedUser();
+
+  if (!currentUser) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   if (body.action === "complete") {
     const { data: currentTask, error: readError } = await supabase
       .from("tasks")
       .select("*")
       .eq("id", id)
+      .eq("assigned_to", currentUser.personId)
       .single();
 
     if (readError) {
@@ -77,7 +83,7 @@ export async function PATCH(
         .insert({
           title: task.title,
           description: task.description,
-          assigned_to: task.assigned_to,
+          assigned_to: currentUser.personId,
           frequency: task.frequency,
           due_date: nextDueDate,
           done: false
@@ -102,6 +108,7 @@ export async function PATCH(
           last_completed_at: now
         })
         .eq("id", id)
+        .eq("assigned_to", currentUser.personId)
         .select(taskSelect())
         .single();
 
@@ -137,6 +144,7 @@ export async function PATCH(
       .from("tasks")
       .update({ done: false })
       .eq("id", id)
+      .eq("assigned_to", currentUser.personId)
       .select(taskSelect())
       .single();
 
@@ -161,10 +169,6 @@ export async function PATCH(
     updatePayload.description = normalizeNullableString(body.description);
   }
 
-  if ("assigned_to" in body) {
-    updatePayload.assigned_to = normalizeNullableString(body.assigned_to);
-  }
-
   if (typeof body.frequency === "string" && allowedFrequencies.has(body.frequency)) {
     updatePayload.frequency = body.frequency;
   }
@@ -181,6 +185,7 @@ export async function PATCH(
     .from("tasks")
     .update(updatePayload)
     .eq("id", id)
+    .eq("assigned_to", currentUser.personId)
     .select(taskSelect())
     .single();
 
@@ -200,7 +205,13 @@ export async function DELETE(
 
   const { id } = await params;
   const supabase = getSupabaseAdmin();
-  const { error } = await supabase.from("tasks").delete().eq("id", id);
+  const currentUser = await getAuthorizedUser();
+
+  if (!currentUser) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { error } = await supabase.from("tasks").delete().eq("id", id).eq("assigned_to", currentUser.personId);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });

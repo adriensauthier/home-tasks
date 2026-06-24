@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
-import { isPasswordEnabled, isRequestAuthorized } from "@/lib/auth";
+import { getAuthorizedUser } from "@/lib/auth";
 
 export async function GET() {
+  const user = await getAuthorizedUser();
+
   return NextResponse.json({
-    passwordEnabled: isPasswordEnabled(),
-    authenticated: await isRequestAuthorized()
+    authenticated: Boolean(user),
+    user
   });
 }

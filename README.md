@@ -4,9 +4,9 @@ HomeTasks est une petite application web pour gérer les tâches ménagères d'u
 
 Elle permet de :
 
-- créer les personnes de la maison ;
-- créer des tâches ménagères ;
-- attribuer une tâche à une personne ;
+- utiliser des comptes nominatifs : `stephane`, `claudine`, `adrien`, `lea` ;
+- définir son mot de passe à la première connexion ;
+- voir uniquement ses propres tâches ;
 - choisir une fréquence : une fois, chaque jour, chaque semaine, chaque mois ;
 - suivre les tâches à faire, terminées ou en retard ;
 - marquer une tâche comme faite ;
@@ -20,6 +20,8 @@ Elle permet de :
 - Supabase PostgreSQL
 
 L'app n'utilise pas la clé publique Supabase côté navigateur. Les accès à la base passent par les routes API Next.js avec la clé `service_role`, stockée uniquement dans les variables d'environnement Vercel.
+
+Le système de connexion repose sur quatre comptes fixes : `stephane`, `claudine`, `adrien` et `lea`. À la première connexion, chaque compte enregistre le mot de passe saisi.
 
 ## 1. Créer la base Supabase
 
@@ -46,21 +48,11 @@ Attention : la clé `service_role` est secrète. Ne la mets jamais dans du code 
 2. Va sur Vercel.
 3. Clique sur `Add New...` > `Project`.
 4. Importe ton repo GitHub.
-5. Dans `Environment Variables`, ajoute :
+5. Dans `Environment Variables`, ajoute au minimum :
 
 ```env
 SUPABASE_URL=ton_project_url_supabase
 SUPABASE_SERVICE_ROLE_KEY=ta_cle_service_role_supabase
-APP_PASSWORD=mot_de_passe_optionnel
-AUTH_SECRET=une_valeur_longue_et_aleatoire
-```
-
-`APP_PASSWORD` est optionnel. Si tu ne le mets pas, toute personne qui possède le lien pourra voir et modifier les tâches.
-
-Pour générer `AUTH_SECRET`, tu peux utiliser :
-
-```bash
-openssl rand -hex 32
 ```
 
 6. Clique sur `Deploy`.
@@ -90,5 +82,5 @@ http://localhost:3000
 - Vercel héberge l'app.
 - Supabase stocke les données.
 - La base est protégée par RLS et sans politique publique ; seules les routes API Next.js utilisent la clé serveur.
-- Pour une vraie app familiale/colocation, le mot de passe partagé suffit généralement.
-- Pour une app plus sérieuse, il faudrait ajouter de vrais comptes utilisateurs.
+- Chaque compte ne voit que ses propres tâches.
+- Si tu veux ajouter un nouveau membre, il faut créer un nouveau compte dans la table `app_users` puis le relier à une personne.
