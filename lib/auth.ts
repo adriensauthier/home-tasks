@@ -20,7 +20,7 @@ type AuthRecord = {
   person: {
     id: string;
     name: string;
-  } | null;
+  }[] | null;
 };
 
 function normalizeUsername(value: string) {
@@ -100,10 +100,12 @@ async function getAuthRecord(userId: string) {
 }
 
 function toAuthUser(record: AuthRecord): AuthUser {
+  const person = record.person?.[0] ?? null;
+
   return {
     id: record.id,
     username: record.username,
-    name: record.person?.name ?? record.username,
+    name: person?.name ?? record.username,
     personId: record.person_id
   };
 }
