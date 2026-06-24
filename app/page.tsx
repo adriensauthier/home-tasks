@@ -36,7 +36,7 @@ type AuthStatus = {
 };
 
 const frequencyLabels: Record<Frequency, string> = {
-  one_time: "Une fois",
+  one_time: "Pas de récurrence",
   daily: "Tous les jours",
   weekly: "Chaque semaine",
   monthly: "Chaque mois"
@@ -108,9 +108,9 @@ export default function HomePage() {
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
   const [taskAssignedTo, setTaskAssignedTo] = useState("");
-  const [taskFrequency, setTaskFrequency] = useState<Frequency>("weekly");
+  const [taskFrequency, setTaskFrequency] = useState<Frequency>("one_time");
   const [taskDueDate, setTaskDueDate] = useState("");
-  const [activeTab, setActiveTab] = useState<"overview" | "ranking">("overview");
+  const [activeTab, setActiveTab] = useState<"new" | "overview" | "personal" | "ranking">("overview");
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
@@ -172,6 +172,23 @@ export default function HomePage() {
       };
     });
   }, [people, tasks]);
+
+  const currentPersonTasks = useMemo(() => {
+    if (!authStatus?.user?.personId) {
+      return [];
+    }
+
+    return tasks.filter((task) => task.assigned_to === authStatus.user?.personId);
+  }, [authStatus?.user?.personId, tasks]);
+
+  const currentPersonStats = useMemo(() => {
+    return {
+      total: currentPersonTasks.length,
+      todo: currentPersonTasks.filter((task) => !task.done).length,
+      overdue: currentPersonTasks.filter(isOverdue).length,
+      completed: currentPersonTasks.filter((task) => task.done).length
+    };
+  }, [currentPersonTasks]);
 
   const ranking = useMemo(() => {
     const rankingMap = new Map<string, { person: Person; points: number; completed: number }>();
@@ -280,7 +297,7 @@ export default function HomePage() {
       setTaskTitle("");
       setTaskDescription("");
       setTaskAssignedTo(authStatus?.user?.personId ?? "");
-      setTaskFrequency("weekly");
+      setTaskFrequency("one_time");
       setTaskDueDate("");
       await loadData();
     } catch (caughtError) {
@@ -390,11 +407,25 @@ export default function HomePage() {
 
       <section className="tabs-row">
         <button
+          className={`tab-button ${activeTab === "new" ? "active" : ""}`}
+          onClick={() => setActiveTab("new")}
+          type="button"
+        >
+          Nouvelle tâche
+        </button>
+        <button
           className={`tab-button ${activeTab === "overview" ? "active" : ""}`}
           onClick={() => setActiveTab("overview")}
           type="button"
         >
           Vue d'ensemble
+        </button>
+        <button
+          className={`tab-button ${activeTab === "personal" ? "active" : ""}`}
+          onClick={() => setActiveTab("personal")}
+          type="button"
+        >
+          Vue personnelle
         </button>
         <button
           className={`tab-button ${activeTab === "ranking" ? "active" : ""}`}
@@ -404,6 +435,70 @@ export default function HomePage() {
           Classement
         </button>
       </section>
+
+      {activeTab === "new" && (
+        <section className="grid two-columns">
+          <article className="panel">
+            <h2>Nouvelle tâche</h2>
+            <form onSubmit={handleAddTask} className="stack">
+              <label>
+                Tâche
+                <input
+                  value={taskTitle}
+                  onChange={(event) => setTaskTitle(event.target.value)}
+                  placeholder="Exemple : Sortir les poubelles"
+                />
+              </label>
+
+              <label>
+                Description facultative
+                <textarea
+                  value={taskDescription}
+                  onChange={(event) => setTaskDescription(event.target.value)}
+                  placeholder="Détails, consignes, endroit, etc."
+                />
+              </label>
+
+              <label>
+                Attribuée à
+                <select value={taskAssignedTo} onChange={(event) => setTaskAssignedTo(event.target.value)}>
+                  {people.map((person) => (
+                    <option value={person.id} key={person.id}>
+                      {person.name}
+                      {person.id === authStatus.user?.personId ? " (moi)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                Fréquence
+                <select value={taskFrequency} onChange={(event) => setTaskFrequency(event.target.value as Frequency)}>
+                  {Object.entries(frequencyLabels).map(([value, label]) => (
+                    <option value={value} key={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                Date limite
+                <input
+                  required
+                  type="date"
+                  value={taskDueDate}
+                  onChange={(event) => setTaskDueDate(event.target.value)}
+                />
+              </label>
+
+              <button disabled={saving || !taskTitle.trim() || !taskDueDate} type="submit">
+                Créer la tâche
+              </button>
+            </form>
+          </article>
+        </section>
+      )}
 
       {activeTab === "overview" && (
         <>
@@ -424,61 +519,6 @@ export default function HomePage() {
           </section>
 
           <section className="grid two-columns">
-            <article className="panel">
-              <h2>Nouvelle tâche</h2>
-              <form onSubmit={handleAddTask} className="stack">
-                <label>
-                  Tâche
-                  <input
-                    value={taskTitle}
-                    onChange={(event) => setTaskTitle(event.target.value)}
-                    placeholder="Exemple : Sortir les poubelles"
-                  />
-                </label>
-
-                <label>
-                  Description facultative
-                  <textarea
-                    value={taskDescription}
-                    onChange={(event) => setTaskDescription(event.target.value)}
-                    placeholder="Détails, consignes, endroit, etc."
-                  />
-                </label>
-
-                <label>
-                  Attribuée à
-                  <select value={taskAssignedTo} onChange={(event) => setTaskAssignedTo(event.target.value)}>
-                    {people.map((person) => (
-                      <option value={person.id} key={person.id}>
-                        {person.name}
-                        {person.id === authStatus.user?.personId ? " (moi)" : ""}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label>
-                  Fréquence
-                  <select value={taskFrequency} onChange={(event) => setTaskFrequency(event.target.value as Frequency)}>
-                    {Object.entries(frequencyLabels).map(([value, label]) => (
-                      <option value={value} key={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label>
-                  Date limite
-                  <input type="date" value={taskDueDate} onChange={(event) => setTaskDueDate(event.target.value)} />
-                </label>
-
-                <button disabled={saving || !taskTitle.trim()} type="submit">
-                  Créer la tâche
-                </button>
-              </form>
-            </article>
-
             <article className="panel">
               <div className="section-header">
                 <h2>Calendrier des tâches</h2>
@@ -533,18 +573,36 @@ export default function HomePage() {
               </div>
             </article>
           </section>
+        </>
+      )}
+
+      {activeTab === "personal" && (
+        <>
+          <section className="people-stats-grid">
+            <article className="person-stat-card current-person-card">
+              <div className="person-stat-head">
+                <strong>{authStatus.user?.name ?? "Moi"}</strong>
+                <span>{currentPersonStats.total} tâche{currentPersonStats.total > 1 ? "s" : ""}</span>
+              </div>
+              <div className="person-stat-values">
+                <span>À faire: {currentPersonStats.todo}</span>
+                <span>En retard: {currentPersonStats.overdue}</span>
+                <span>Terminées: {currentPersonStats.completed}</span>
+              </div>
+            </article>
+          </section>
 
           <section className="panel">
             <div className="section-header">
-              <h2>Toutes les tâches</h2>
+              <h2>Mes tâches</h2>
               <button className="secondary" onClick={loadData} type="button">
                 Actualiser
               </button>
             </div>
 
             <div className="task-list">
-              {tasks.length === 0 && <p className="muted">Aucune tâche pour le moment.</p>}
-              {tasks.map((task) => (
+              {currentPersonTasks.length === 0 && <p className="muted">Aucune tâche pour le moment.</p>}
+              {currentPersonTasks.map((task) => (
                 <article className={`task-card ${task.done ? "done" : ""} ${isOverdue(task) ? "overdue" : ""}`} key={task.id}>
                   <div className="task-main">
                     <div>
@@ -555,7 +613,6 @@ export default function HomePage() {
                       </div>
                       {task.description && <p>{task.description}</p>}
                       <div className="task-meta">
-                        <span>{task.person?.name ?? "Non attribuée"}</span>
                         <span>{frequencyLabels[task.frequency]}</span>
                         <span>{task.due_date ? `Pour le ${new Date(`${task.due_date}T00:00:00`).toLocaleDateString("fr-CH")}` : "Pas de date"}</span>
                       </div>

@@ -64,9 +64,14 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => ({}));
   const title = normalizeNullableString(body.title);
+  const dueDate = normalizeNullableString(body.due_date);
 
   if (!title) {
     return NextResponse.json({ error: "Title is required" }, { status: 400 });
+  }
+
+  if (!dueDate) {
+    return NextResponse.json({ error: "Due date is required" }, { status: 400 });
   }
 
   const supabase = getSupabaseAdmin();
@@ -77,7 +82,7 @@ export async function POST(request: NextRequest) {
       description: normalizeNullableString(body.description),
       assigned_to: normalizeNullableString(body.assigned_to) ?? currentUser.personId,
       frequency: normalizeFrequency(body.frequency),
-      due_date: normalizeNullableString(body.due_date),
+      due_date: dueDate,
       done: false
     })
     .select(`
