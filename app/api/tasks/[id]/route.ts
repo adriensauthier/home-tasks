@@ -89,8 +89,7 @@ export async function PATCH(
         return NextResponse.json({ error: insertError.message }, { status: 400 });
       }
 
-      const nextTaskId =
-        nextTask && typeof nextTask === "object" && "id" in nextTask ? nextTask.id : null;
+      const nextTaskId = (nextTask as { id?: string } | null)?.id ?? null;
 
       if (!nextTaskId) {
         return NextResponse.json({ error: "Unable to create the next recurring task." }, { status: 400 });
