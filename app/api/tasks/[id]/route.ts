@@ -89,6 +89,13 @@ export async function PATCH(
         return NextResponse.json({ error: insertError.message }, { status: 400 });
       }
 
+      const nextTaskId =
+        nextTask && typeof nextTask === "object" && "id" in nextTask ? nextTask.id : null;
+
+      if (!nextTaskId) {
+        return NextResponse.json({ error: "Unable to create the next recurring task." }, { status: 400 });
+      }
+
       const { data, error } = await supabase
         .from("tasks")
         .update({
@@ -100,7 +107,7 @@ export async function PATCH(
         .single();
 
       if (error) {
-        await supabase.from("tasks").delete().eq("id", nextTask.id);
+        await supabase.from("tasks").delete().eq("id", nextTaskId);
         return NextResponse.json({ error: error.message }, { status: 400 });
       }
 
