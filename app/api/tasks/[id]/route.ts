@@ -64,7 +64,6 @@ export async function PATCH(
       .from("tasks")
       .select("*")
       .eq("id", id)
-      .eq("assigned_to", currentUser.personId)
       .single();
 
     if (readError) {
@@ -83,7 +82,7 @@ export async function PATCH(
         .insert({
           title: task.title,
           description: task.description,
-          assigned_to: currentUser.personId,
+          assigned_to: task.assigned_to,
           frequency: task.frequency,
           due_date: nextDueDate,
           done: false
@@ -108,7 +107,6 @@ export async function PATCH(
           last_completed_at: now
         })
         .eq("id", id)
-        .eq("assigned_to", currentUser.personId)
         .select(taskSelect())
         .single();
 
@@ -144,7 +142,6 @@ export async function PATCH(
       .from("tasks")
       .update({ done: false })
       .eq("id", id)
-      .eq("assigned_to", currentUser.personId)
       .select(taskSelect())
       .single();
 
@@ -169,6 +166,10 @@ export async function PATCH(
     updatePayload.description = normalizeNullableString(body.description);
   }
 
+  if ("assigned_to" in body) {
+    updatePayload.assigned_to = normalizeNullableString(body.assigned_to);
+  }
+
   if (typeof body.frequency === "string" && allowedFrequencies.has(body.frequency)) {
     updatePayload.frequency = body.frequency;
   }
@@ -185,7 +186,6 @@ export async function PATCH(
     .from("tasks")
     .update(updatePayload)
     .eq("id", id)
-    .eq("assigned_to", currentUser.personId)
     .select(taskSelect())
     .single();
 
@@ -211,7 +211,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { error } = await supabase.from("tasks").delete().eq("id", id).eq("assigned_to", currentUser.personId);
+  const { error } = await supabase.from("tasks").delete().eq("id", id);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });

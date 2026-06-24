@@ -72,9 +72,11 @@ export default function HomePage() {
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
   const [username, setUsername] = useState("adrien");
   const [password, setPassword] = useState("");
+  const [people, setPeople] = useState<Person[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
+  const [taskAssignedTo, setTaskAssignedTo] = useState("");
   const [taskFrequency, setTaskFrequency] = useState<Frequency>("weekly");
   const [taskDueDate, setTaskDueDate] = useState("");
   const [error, setError] = useState("");
@@ -83,7 +85,12 @@ export default function HomePage() {
 
   async function loadData() {
     setError("");
-    const tasksPayload = await requestJson<{ tasks: Task[] }>("/api/tasks");
+    const [peoplePayload, tasksPayload] = await Promise.all([
+      requestJson<{ people: Person[] }>("/api/people"),
+      requestJson<{ tasks: Task[] }>("/api/tasks")
+    ]);
+
+    setPeople(peoplePayload.people);
     setTasks(tasksPayload.tasks);
   }
 
@@ -156,6 +163,7 @@ export default function HomePage() {
         body: JSON.stringify({
           title: taskTitle,
           description: taskDescription,
+          assigned_to: taskAssignedTo,
           frequency: taskFrequency,
           due_date: taskDueDate
         })
@@ -163,6 +171,7 @@ export default function HomePage() {
 
       setTaskTitle("");
       setTaskDescription("");
+      setTaskAssignedTo("");
       setTaskFrequency("weekly");
       setTaskDueDate("");
       await loadData();
@@ -257,8 +266,8 @@ export default function HomePage() {
       <header className="hero">
         <div>
           <p className="eyebrow">HomeTasks</p>
-          <h1>Mes tâches</h1>
-          <p>Tu es connecté en tant que {authStatus.user?.name ?? "utilisateur"}. Tu vois uniquement tes tâches.</p>
+          <h1>Tâches de la maison</h1>
+          <p>Tu es connecté en tant que {authStatus.user?.name ?? "utilisateur"}. Tu peux attribuer une tâche à n'importe quel compte.</p>
         </div>
 
         <div className="hero-actions">
@@ -313,6 +322,18 @@ export default function HomePage() {
             </label>
 
             <label>
+              Attribuée à
+              <select value={taskAssignedTo} onChange={(event) => setTaskAssignedTo(event.target.value)}>
+                <option value="">Moi ({authStatus.user?.name ?? "compte courant"})</option>
+                {people.map((person) => (
+                  <option value={person.id} key={person.id}>
+                    {person.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
               Fréquence
               <select value={taskFrequency} onChange={(event) => setTaskFrequency(event.target.value as Frequency)}>
                 {Object.entries(frequencyLabels).map(([value, label]) => (
@@ -337,7 +358,7 @@ export default function HomePage() {
 
       <section className="panel">
         <div className="section-header">
-          <h2>Mes tâches</h2>
+          <h2>Toutes les tâches</h2>
           <button className="secondary" onClick={loadData} type="button">
             Actualiser
           </button>
@@ -362,6 +383,19 @@ export default function HomePage() {
                 </div>
 
                 <div className="task-actions">
+                  <select
+                    value={task.assigned_to ?? ""}
+                    onChange={(event) => updateTask(task.id, { assigned_to: event.target.value })}
+                    aria-label="Changer la personne assignée"
+                  >
+                    <option value="">Non attribuée</option>
+                    {people.map((person) => (
+                      <option value={person.id} key={person.id}>
+                        {person.name}
+                      </option>
+                    ))}
+                  </select>
+
                   {!task.done ? (
                     <button onClick={() => updateTask(task.id, { action: "complete" })} type="button">
                       Marquer faite
