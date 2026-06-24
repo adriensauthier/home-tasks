@@ -114,6 +114,12 @@ export default function HomePage() {
     void boot();
   }, []);
 
+  useEffect(() => {
+    if (authStatus?.user?.personId && !taskAssignedTo) {
+      setTaskAssignedTo(authStatus.user.personId);
+    }
+  }, [authStatus?.user?.personId, taskAssignedTo]);
+
   const stats = useMemo(() => {
     const todoTasks = tasks.filter((task) => !task.done);
     const overdueTasks = tasks.filter(isOverdue);
@@ -163,7 +169,7 @@ export default function HomePage() {
         body: JSON.stringify({
           title: taskTitle,
           description: taskDescription,
-          assigned_to: taskAssignedTo,
+          assigned_to: taskAssignedTo || authStatus?.user?.personId,
           frequency: taskFrequency,
           due_date: taskDueDate
         })
@@ -171,7 +177,7 @@ export default function HomePage() {
 
       setTaskTitle("");
       setTaskDescription("");
-      setTaskAssignedTo("");
+      setTaskAssignedTo(authStatus?.user?.personId ?? "");
       setTaskFrequency("weekly");
       setTaskDueDate("");
       await loadData();
@@ -324,10 +330,10 @@ export default function HomePage() {
             <label>
               Attribuée à
               <select value={taskAssignedTo} onChange={(event) => setTaskAssignedTo(event.target.value)}>
-                <option value="">Moi ({authStatus.user?.name ?? "compte courant"})</option>
                 {people.map((person) => (
                   <option value={person.id} key={person.id}>
                     {person.name}
+                    {person.id === authStatus.user?.personId ? " (moi)" : ""}
                   </option>
                 ))}
               </select>
