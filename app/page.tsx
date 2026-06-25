@@ -508,6 +508,41 @@ export default function HomePage() {
         </button>
       </section>
 
+      <nav className="mobile-bottom-nav" aria-label="Navigation principale">
+        <button
+          className={`mobile-nav-button ${activeTab === "new" ? "active" : ""}`}
+          aria-current={activeTab === "new" ? "page" : undefined}
+          onClick={() => setActiveTab("new")}
+          type="button"
+        >
+          Créer
+        </button>
+        <button
+          className={`mobile-nav-button ${activeTab === "overview" ? "active" : ""}`}
+          aria-current={activeTab === "overview" ? "page" : undefined}
+          onClick={() => setActiveTab("overview")}
+          type="button"
+        >
+          Vue
+        </button>
+        <button
+          className={`mobile-nav-button ${activeTab === "personal" ? "active" : ""}`}
+          aria-current={activeTab === "personal" ? "page" : undefined}
+          onClick={() => setActiveTab("personal")}
+          type="button"
+        >
+          Mes tâches
+        </button>
+        <button
+          className={`mobile-nav-button ${activeTab === "ranking" ? "active" : ""}`}
+          aria-current={activeTab === "ranking" ? "page" : undefined}
+          onClick={() => setActiveTab("ranking")}
+          type="button"
+        >
+          Scores
+        </button>
+      </nav>
+
       {activeTab === "new" && (
         <section className="grid two-columns">
           <article className="panel">

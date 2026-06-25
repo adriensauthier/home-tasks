@@ -25,6 +25,7 @@ body {
     linear-gradient(135deg, #f4f1ea 0%, #efe7dc 100%);
   color: var(--text);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-tap-highlight-color: transparent;
 }
 
 button,
@@ -41,6 +42,7 @@ button {
   color: white;
   cursor: pointer;
   font-weight: 800;
+  min-height: 44px;
   padding: 0.75rem 1rem;
   transition: transform 140ms ease, opacity 140ms ease, background 140ms ease;
 }
@@ -89,6 +91,7 @@ textarea {
   color: var(--text);
   outline: none;
   padding: 0.82rem 0.95rem;
+  min-height: 44px;
 }
 
 input:focus,
@@ -119,20 +122,20 @@ p {
 }
 
 h1 {
-  font-size: clamp(2.2rem, 7vw, 4.5rem);
-  letter-spacing: -0.06em;
+  font-size: 3.8rem;
+  letter-spacing: 0;
   line-height: 0.95;
   margin-bottom: 1rem;
 }
 
 h2 {
   font-size: 1.35rem;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
 }
 
 h3 {
   font-size: 1.05rem;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   margin-bottom: 0;
 }
 
@@ -238,7 +241,7 @@ h3 {
 .stats-grid strong {
   display: block;
   font-size: 1.8rem;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 .stack {
@@ -349,6 +352,10 @@ h3 {
   background: #ecf6ef;
   border-color: #cde5d6;
   color: var(--accent-dark);
+}
+
+.mobile-bottom-nav {
+  display: none;
 }
 
 .people-stats-grid {
@@ -661,8 +668,27 @@ h3 {
 }
 
 @media (max-width: 850px) {
+  body {
+    background: linear-gradient(180deg, #f8f3ec 0%, #efe7dc 100%);
+  }
+
   .shell {
-    padding: 1rem;
+    padding: 0.85rem 0.85rem 6rem;
+  }
+
+  h1 {
+    font-size: 2rem;
+    line-height: 1.05;
+    margin-bottom: 0.45rem;
+  }
+
+  h2 {
+    font-size: 1.08rem;
+    margin-bottom: 0;
+  }
+
+  h3 {
+    font-size: 1rem;
   }
 
   .hero,
@@ -671,32 +697,131 @@ h3 {
     flex-direction: column;
   }
 
+  .hero {
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .hero p {
+    font-size: 0.92rem;
+    margin-bottom: 0;
+  }
+
   .hero-actions {
     align-items: stretch;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 1fr auto;
+  }
+
+  .current-user-pill {
+    align-items: center;
+    display: flex;
+    justify-content: center;
+    min-height: 44px;
+    text-align: center;
   }
 
   .tabs-row {
+    display: none;
+  }
+
+  .mobile-bottom-nav {
+    background: rgba(255, 250, 243, 0.96);
+    border: 1px solid rgba(226, 216, 202, 0.9);
+    border-radius: 1.2rem 1.2rem 0 0;
+    bottom: 0;
+    box-shadow: 0 -10px 30px rgba(32, 24, 14, 0.12);
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    gap: 0.25rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    left: 0;
+    padding: 0.45rem 0.5rem calc(0.45rem + env(safe-area-inset-bottom));
+    position: fixed;
+    right: 0;
+    z-index: 20;
+  }
+
+  .mobile-nav-button {
+    background: transparent;
+    border-radius: 0.85rem;
+    color: var(--muted);
+    font-size: 0.76rem;
+    line-height: 1.05;
+    min-height: 48px;
+    padding: 0.35rem 0.2rem;
+  }
+
+  .mobile-nav-button.active {
+    background: #ecf6ef;
+    color: var(--accent-dark);
+  }
+
+  .panel {
+    border-radius: 1rem;
+    margin-bottom: 0.85rem;
+    padding: 1rem;
+  }
+
+  .people-stats-grid {
+    display: flex;
+    gap: 0.65rem;
+    margin: 0 -0.85rem 0.85rem;
+    overflow-x: auto;
+    padding: 0 0.85rem 0.25rem;
+    scroll-snap-type: x proximity;
+  }
+
+  .person-stat-card {
+    box-shadow: none;
+    flex: 0 0 72%;
+    max-width: 18rem;
+    scroll-snap-align: start;
   }
 
   .calendar-nav {
     align-items: stretch;
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .calendar-label {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    text-align: center;
+  }
+
+  .calendar-nav button:first-child {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .calendar-nav button:last-child {
+    grid-column: 2;
+    grid-row: 2;
   }
 
   .calendar-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-columns: minmax(10.5rem, 72vw);
+    grid-auto-flow: column;
+    grid-template-columns: none;
+    margin: 0 -1rem;
+    overflow-x: auto;
+    padding: 0 1rem 0.4rem;
+    scroll-snap-type: x mandatory;
   }
 
   .calendar-grid.week-head {
     display: none;
   }
 
+  .calendar-day {
+    min-height: 9rem;
+    scroll-snap-align: start;
+  }
+
   .ranking-row {
     grid-template-columns: 1fr;
+    gap: 0.45rem;
   }
 
   .two-columns,
@@ -717,10 +842,32 @@ h3 {
 
   .task-actions {
     align-items: stretch;
+    display: grid;
+    grid-template-columns: 1fr;
     min-width: 0;
   }
 
   .task-actions select {
     min-width: 0;
+  }
+
+  .task-card {
+    border-radius: 1rem;
+    padding: 0.9rem;
+  }
+
+  .task-meta {
+    gap: 0.35rem;
+  }
+
+  .task-meta span {
+    border-radius: 0.7rem;
+    font-size: 0.78rem;
+    padding: 0.3rem 0.45rem;
+  }
+
+  .edit-task-actions {
+    display: grid;
+    grid-template-columns: 1fr;
   }
 }
