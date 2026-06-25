@@ -35,6 +35,14 @@ type AuthStatus = {
   user: User | null;
 };
 
+type TaskEditDraft = {
+  title: string;
+  description: string;
+  assigned_to: string;
+  frequency: Frequency;
+  due_date: string;
+};
+
 const frequencyLabels: Record<Frequency, string> = {
   one_time: "Pas de récurrence",
   daily: "Tous les jours",
@@ -55,6 +63,20 @@ function toIsoDate(date: Date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function getWeekStart(date: Date) {
+  const start = new Date(date);
+  const weekday = (start.getDay() + 6) % 7;
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - weekday);
+  return start;
+}
+
+function addDays(date: Date, days: number) {
+  const nextDate = new Date(date);
+  nextDate.setDate(nextDate.getDate() + days);
+  return nextDate;
 }
 
 function parseIsoDate(value: string) {
@@ -111,10 +133,9 @@ export default function HomePage() {
   const [taskFrequency, setTaskFrequency] = useState<Frequency>("one_time");
   const [taskDueDate, setTaskDueDate] = useState("");
   const [activeTab, setActiveTab] = useState<"new" | "overview" | "personal" | "ranking">("overview");
-  const [calendarMonth, setCalendarMonth] = useState(() => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1);
-  });
+  const [calendarWeekStart, setCalendarWeekStart] = useState(() => getWeekStart(new Date()));
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [taskEditDraft, setTaskEditDraft] = useState<TaskEditDraft | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -225,32 +246,34 @@ export default function HomePage() {
   }, [people, tasks]);
 
   const calendarDays = useMemo(() => {
-    const monthStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
-    const monthStartWeekday = (monthStart.getDay() + 6) % 7;
-    const gridStart = new Date(monthStart);
-    gridStart.setDate(monthStart.getDate() - monthStartWeekday);
-
-    return Array.from({ length: 42 }, (_, index) => {
-      const date = new Date(gridStart);
-      date.setDate(gridStart.getDate() + index);
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = addDays(calendarWeekStart, index);
       const isoDate = toIsoDate(date);
       const dayTasks = tasks.filter((task) => task.due_date === isoDate);
 
       return {
         isoDate,
         date,
-        inCurrentMonth: date.getMonth() === calendarMonth.getMonth(),
+        isToday: isoDate === toIsoDate(new Date()),
         tasks: dayTasks
       };
     });
-  }, [calendarMonth, tasks]);
+  }, [calendarWeekStart, tasks]);
 
-  const calendarMonthLabel = useMemo(() => {
-    return calendarMonth.toLocaleDateString("fr-CH", {
+  const calendarWeekLabel = useMemo(() => {
+    const weekEnd = addDays(calendarWeekStart, 6);
+    const startLabel = calendarWeekStart.toLocaleDateString("fr-CH", {
+      day: "numeric",
+      month: "long"
+    });
+    const endLabel = weekEnd.toLocaleDateString("fr-CH", {
+      day: "numeric",
       month: "long",
       year: "numeric"
     });
-  }, [calendarMonth]);
+
+    return `${startLabel} - ${endLabel}`;
+  }, [calendarWeekStart]);
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -317,11 +340,60 @@ export default function HomePage() {
         body: JSON.stringify(body)
       });
       await loadData();
+      return true;
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Impossible de modifier la tâche.");
     } finally {
       setSaving(false);
     }
+  }
+
+  function startEditingTask(task: Task) {
+    setEditingTaskId(task.id);
+    setTaskEditDraft({
+      title: task.title,
+      description: task.description ?? "",
+      assigned_to: task.assigned_to ?? "",
+      frequency: task.frequency,
+      due_date: task.due_date ?? ""
+    });
+  }
+
+  function updateTaskEditDraft<K extends keyof TaskEditDraft>(field: K, value: TaskEditDraft[K]) {
+    setTaskEditDraft((currentDraft) => {
+      if (!currentDraft) {
+        return currentDraft;
+      }
+
+      return {
+        ...currentDraft,
+        [field]: value
+      };
+    });
+  }
+
+  async function saveEditedTask(taskId: string) {
+    if (!taskEditDraft) {
+      return;
+    }
+
+    const updated = await updateTask(taskId, {
+      title: taskEditDraft.title,
+      description: taskEditDraft.description,
+      assigned_to: taskEditDraft.assigned_to,
+      frequency: taskEditDraft.frequency,
+      due_date: taskEditDraft.due_date
+    });
+
+    if (updated) {
+      setEditingTaskId(null);
+      setTaskEditDraft(null);
+    }
+  }
+
+  function cancelEditingTask() {
+    setEditingTaskId(null);
+    setTaskEditDraft(null);
   }
 
   async function deleteTask(taskId: string) {
@@ -525,26 +597,18 @@ export default function HomePage() {
                 <div className="calendar-nav">
                   <button
                     className="secondary"
-                    onClick={() =>
-                      setCalendarMonth(
-                        new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1)
-                      )
-                    }
+                    onClick={() => setCalendarWeekStart((currentWeekStart) => addDays(currentWeekStart, -7))}
                     type="button"
                   >
-                    Mois précédent
+                    Semaine précédente
                   </button>
-                  <strong className="calendar-label">{calendarMonthLabel}</strong>
+                  <strong className="calendar-label">{calendarWeekLabel}</strong>
                   <button
                     className="secondary"
-                    onClick={() =>
-                      setCalendarMonth(
-                        new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1)
-                      )
-                    }
+                    onClick={() => setCalendarWeekStart((currentWeekStart) => addDays(currentWeekStart, 7))}
                     type="button"
                   >
-                    Mois suivant
+                    Semaine suivante
                   </button>
                 </div>
               </div>
@@ -557,8 +621,11 @@ export default function HomePage() {
 
               <div className="calendar-grid days">
                 {calendarDays.map((day) => (
-                  <article className={`calendar-day ${day.inCurrentMonth ? "" : "outside"}`} key={day.isoDate}>
-                    <header>{day.date.getDate()}</header>
+                  <article className={`calendar-day ${day.isToday ? "today" : ""}`} key={day.isoDate}>
+                    <header>
+                      <span>{day.date.getDate()}</span>
+                      <small>{day.date.toLocaleDateString("fr-CH", { month: "short" })}</small>
+                    </header>
                     <div className="calendar-day-tasks">
                       {day.tasks.slice(0, 3).map((task) => (
                         <div className={`calendar-chip ${task.done ? "done" : ""}`} key={task.id}>
@@ -572,6 +639,137 @@ export default function HomePage() {
                 ))}
               </div>
             </article>
+          </section>
+
+          <section className="panel">
+            <div className="section-header">
+              <h2>Toutes les tâches</h2>
+              <button className="secondary" onClick={loadData} type="button">
+                Actualiser
+              </button>
+            </div>
+
+            <div className="task-list">
+              {tasks.length === 0 && <p className="muted">Aucune tâche pour le moment.</p>}
+              {tasks.map((task) => {
+                const currentDraft = editingTaskId === task.id ? taskEditDraft : null;
+
+                return (
+                  <article className={`task-card ${task.done ? "done" : ""} ${isOverdue(task) ? "overdue" : ""}`} key={task.id}>
+                    {currentDraft ? (
+                      <form
+                        className="edit-task-form"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          void saveEditedTask(task.id);
+                        }}
+                      >
+                        <div className="form-grid">
+                          <label>
+                            Tâche
+                            <input
+                              value={currentDraft.title}
+                              onChange={(event) => updateTaskEditDraft("title", event.target.value)}
+                            />
+                          </label>
+
+                          <label>
+                            Attribuée à
+                            <select
+                              value={currentDraft.assigned_to}
+                              onChange={(event) => updateTaskEditDraft("assigned_to", event.target.value)}
+                            >
+                              <option value="">Non attribuée</option>
+                              {people.map((person) => (
+                                <option value={person.id} key={person.id}>
+                                  {person.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+
+                          <label>
+                            Fréquence
+                            <select
+                              value={currentDraft.frequency}
+                              onChange={(event) => updateTaskEditDraft("frequency", event.target.value as Frequency)}
+                            >
+                              {Object.entries(frequencyLabels).map(([value, label]) => (
+                                <option value={value} key={value}>
+                                  {label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+
+                          <label>
+                            Date limite
+                            <input
+                              type="date"
+                              value={currentDraft.due_date}
+                              onChange={(event) => updateTaskEditDraft("due_date", event.target.value)}
+                            />
+                          </label>
+                        </div>
+
+                        <label>
+                          Description facultative
+                          <textarea
+                            value={currentDraft.description}
+                            onChange={(event) => updateTaskEditDraft("description", event.target.value)}
+                          />
+                        </label>
+
+                        <div className="edit-task-actions">
+                          <button disabled={saving || !currentDraft.title.trim()} type="submit">
+                            Enregistrer
+                          </button>
+                          <button className="secondary" onClick={cancelEditingTask} type="button">
+                            Annuler
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      <div className="task-main">
+                        <div>
+                          <div className="task-title-row">
+                            <h3>{task.title}</h3>
+                            {task.done && <span className="pill done-pill">Terminée</span>}
+                            {isOverdue(task) && <span className="pill overdue-pill">En retard</span>}
+                          </div>
+                          {task.description && <p>{task.description}</p>}
+                          <div className="task-meta">
+                            <span>{task.person?.name ?? "Non attribuée"}</span>
+                            <span>{frequencyLabels[task.frequency]}</span>
+                            <span>{task.due_date ? `Pour le ${new Date(`${task.due_date}T00:00:00`).toLocaleDateString("fr-CH")}` : "Pas de date"}</span>
+                          </div>
+                        </div>
+
+                        <div className="task-actions">
+                          <button className="secondary" onClick={() => startEditingTask(task)} type="button">
+                            Modifier
+                          </button>
+
+                          {!task.done ? (
+                            <button onClick={() => updateTask(task.id, { action: "complete" })} type="button">
+                              Marquer faite
+                            </button>
+                          ) : (
+                            <button className="secondary" onClick={() => updateTask(task.id, { action: "reopen" })} type="button">
+                              Rouvrir
+                            </button>
+                          )}
+
+                          <button className="ghost danger" onClick={() => deleteTask(task.id)} type="button">
+                            Supprimer
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
           </section>
         </>
       )}
