@@ -523,7 +523,7 @@ export default function HomePage() {
           onClick={() => setActiveTab("overview")}
           type="button"
         >
-          Vue
+          Maison
         </button>
         <button
           className={`mobile-nav-button ${activeTab === "personal" ? "active" : ""}`}

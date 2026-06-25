@@ -801,13 +801,12 @@ h3 {
   }
 
   .calendar-grid {
-    grid-auto-columns: minmax(10.5rem, 72vw);
-    grid-auto-flow: column;
-    grid-template-columns: none;
-    margin: 0 -1rem;
-    overflow-x: auto;
-    padding: 0 1rem 0.4rem;
-    scroll-snap-type: x mandatory;
+    display: grid;
+    gap: 0.5rem;
+    grid-template-columns: 1fr;
+    margin: 0;
+    overflow: visible;
+    padding: 0;
   }
 
   .calendar-grid.week-head {
@@ -815,8 +814,36 @@ h3 {
   }
 
   .calendar-day {
-    min-height: 9rem;
-    scroll-snap-align: start;
+    align-items: start;
+    display: grid;
+    gap: 0.65rem;
+    grid-template-columns: 4rem 1fr;
+    min-height: 0;
+    padding: 0.75rem;
+    scroll-snap-align: none;
+  }
+
+  .calendar-day header {
+    align-items: center;
+    background: #f7f1e9;
+    border-radius: 0.75rem;
+    display: grid;
+    gap: 0.05rem;
+    justify-content: center;
+    min-height: 3.25rem;
+    text-align: center;
+  }
+
+  .calendar-day header span {
+    font-size: 1.05rem;
+  }
+
+  .calendar-day-tasks {
+    align-self: center;
+  }
+
+  .calendar-chip {
+    border-radius: 0.65rem;
   }
 
   .ranking-row {
