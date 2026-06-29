@@ -129,7 +129,7 @@ export default function HomePage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
-  const [taskAssignedTo, setTaskAssignedTo] = useState("");
+  const [taskAssignedTo, setTaskAssignedTo] = useState<string[]>([]);
   const [taskFrequency, setTaskFrequency] = useState<Frequency>("one_time");
   const [taskDueDate, setTaskDueDate] = useState("");
   const [activeTab, setActiveTab] = useState<"new" | "overview" | "personal" | "ranking">("overview");
@@ -172,10 +172,14 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    if (authStatus?.user?.personId && !taskAssignedTo) {
-      setTaskAssignedTo(authStatus.user.personId);
+    const currentPersonId = authStatus?.user?.personId;
+
+    if (currentPersonId) {
+      setTaskAssignedTo((currentAssignees) =>
+        currentAssignees.length === 0 ? [currentPersonId] : currentAssignees
+      );
     }
-  }, [authStatus?.user?.personId, taskAssignedTo]);
+  }, [authStatus?.user?.personId]);
 
   const statsByPerson = useMemo(() => {
     return people.map((person) => {
@@ -306,20 +310,30 @@ export default function HomePage() {
     setError("");
 
     try {
-      await requestJson("/api/tasks", {
-        method: "POST",
-        body: JSON.stringify({
-          title: taskTitle,
-          description: taskDescription,
-          assigned_to: taskAssignedTo || authStatus?.user?.personId,
-          frequency: taskFrequency,
-          due_date: taskDueDate
-        })
-      });
+      const assignedPersonIds = taskAssignedTo.length > 0
+        ? taskAssignedTo
+        : authStatus?.user?.personId
+          ? [authStatus.user.personId]
+          : [];
+
+      await Promise.all(
+        assignedPersonIds.map((personId) =>
+          requestJson("/api/tasks", {
+            method: "POST",
+            body: JSON.stringify({
+              title: taskTitle,
+              description: taskDescription,
+              assigned_to: personId,
+              frequency: taskFrequency,
+              due_date: taskDueDate
+            })
+          })
+        )
+      );
 
       setTaskTitle("");
       setTaskDescription("");
-      setTaskAssignedTo(authStatus?.user?.personId ?? "");
+      setTaskAssignedTo(authStatus?.user?.personId ? [authStatus.user.personId] : []);
       setTaskFrequency("one_time");
       setTaskDueDate("");
       await loadData();
@@ -328,6 +342,16 @@ export default function HomePage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function toggleTaskAssignee(personId: string) {
+    setTaskAssignedTo((currentAssignees) => {
+      if (currentAssignees.includes(personId)) {
+        return currentAssignees.filter((currentPersonId) => currentPersonId !== personId);
+      }
+
+      return [...currentAssignees, personId];
+    });
   }
 
   async function updateTask(taskId: string, body: Record<string, unknown>) {
@@ -566,17 +590,28 @@ export default function HomePage() {
                 />
               </label>
 
-              <label>
-                Attribuée à
-                <select value={taskAssignedTo} onChange={(event) => setTaskAssignedTo(event.target.value)}>
-                  {people.map((person) => (
-                    <option value={person.id} key={person.id}>
-                      {person.name}
-                      {person.id === authStatus.user?.personId ? " (moi)" : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <fieldset className="assignee-picker">
+                <legend>Attribuée à</legend>
+                <div className="assignee-options">
+                  {people.map((person) => {
+                    const selected = taskAssignedTo.includes(person.id);
+
+                    return (
+                      <label className={`assignee-option ${selected ? "selected" : ""}`} key={person.id}>
+                        <input
+                          checked={selected}
+                          onChange={() => toggleTaskAssignee(person.id)}
+                          type="checkbox"
+                        />
+                        <span>
+                          {person.name}
+                          {person.id === authStatus.user?.personId ? " (moi)" : ""}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
 
               <label>
                 Fréquence
@@ -599,8 +634,8 @@ export default function HomePage() {
                 />
               </label>
 
-              <button disabled={saving || !taskTitle.trim() || !taskDueDate} type="submit">
-                Créer la tâche
+              <button disabled={saving || !taskTitle.trim() || !taskDueDate || taskAssignedTo.length === 0} type="submit">
+                {taskAssignedTo.length > 1 ? `Créer ${taskAssignedTo.length} tâches` : "Créer la tâche"}
               </button>
             </form>
           </article>
